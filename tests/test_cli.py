@@ -89,3 +89,7 @@ def test_explore_unreachable_endpoint_writes_outputs(tmp_path, monkeypatch):
     assert json.loads(log_lines[0])["status"] == "http_error"
     discovery = json.loads((out / "discovery.json").read_text())
     assert discovery["steps"][0]["status"] == "error"
+    assert "could not connect" in discovery["steps"][0]["message"]
+    report = (out / "report.md").read_text()            # outputs are written even when nothing answered
+    assert "**probe** (error)" in report
+    assert (out / "queries" / "00-overview.rq").exists()

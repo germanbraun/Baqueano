@@ -61,8 +61,11 @@ def timeout() -> QueryOutcome:
     return failed("timeout", "no answer after 30.0s")
 
 
-def http_error(code: int = 500) -> QueryOutcome:
-    return failed("http_error", f"HTTP {code}")
+def http_error(code: int | None = 500) -> QueryOutcome:
+    """code=None means a connection failure (no HTTP response)."""
+    outcome = failed("http_error", f"HTTP {code}" if code else "ConnectError: refused")
+    outcome.http_status = code
+    return outcome
 
 
 def budget_exhausted() -> QueryOutcome:
@@ -93,7 +96,8 @@ class FakeClient:
         recorded = self._next(step)
         return QueryOutcome(step=step, query=query, status=recorded.status, duration_s=recorded.duration_s,
                             rows=recorded.rows, boolean=recorded.boolean, error=recorded.error,
-                            text=recorded.text, content_type=recorded.content_type)
+                            http_status=recorded.http_status, text=recorded.text,
+                            content_type=recorded.content_type)
 
     def construct(self, step: str, query: str) -> QueryOutcome:
         return self.query(step, query)

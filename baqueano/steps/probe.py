@@ -29,6 +29,27 @@ def ask_query(graph: str | None) -> str:
     return f"ASK {{ {scope.where('?s ?p ?o', graph)} }}"
 
 
+def failure_hint(status: str, http_status: int | None) -> str:
+    """What the user can do when the probe fails."""
+    if status == "timeout":
+        return "the endpoint is slow or unreachable; try a larger --timeout"
+    if status == "budget_exhausted":
+        return "--budget is too small to even start"
+    if status == "parse_error":
+        return "the URL answered, but not with SPARQL results: is it the SPARQL endpoint URL?"
+    if http_status in (401, 403):
+        return "the endpoint needs authentication: set BAQUEANO_HEADER_AUTHORIZATION (or --header)"
+    if http_status == 404:
+        return "nothing at that URL: check the endpoint path (often /sparql)"
+    if http_status == 400:
+        return "the endpoint rejected a plain ASK query: is it a SPARQL 1.1 endpoint?"
+    if http_status is not None and http_status >= 500:
+        return "the server failed; it may be down or overloaded, try again later"
+    if http_status is None:
+        return "could not connect: check the URL, the network and any proxy"
+    return "see queries.log for the full exchange"
+
+
 def has_service_description(text: str, content_type: str | None) -> bool:
     """True if `text` is RDF containing an sd:Service."""
     graph = parse_rdf(text, content_type)
@@ -41,7 +62,8 @@ def run(client, ctx: Context) -> StepResult:
 
     ask = client.query(NAME, ask_query(graph))
     if ask.status != "ok":
-        return StepResult(NAME, step_status(ask.status), f"endpoint did not answer: {ask.error}")
+        hint = failure_hint(ask.status, ask.http_status)
+        return StepResult(NAME, step_status(ask.status), f"endpoint did not answer: {ask.error} -> {hint}")
     if ask.boolean is None:
         return StepResult(NAME, model.ERROR, "ASK query did not return a boolean")
 

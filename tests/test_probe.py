@@ -72,3 +72,19 @@ def test_has_service_description_needs_sd_service():
     assert not probe.has_service_description("<http://a> <http://b> <http://c> .", "text/turtle")
     assert not probe.has_service_description("this is not turtle {", "text/turtle")
     assert not probe.has_service_description(SD_TURTLE, "text/html")
+
+
+def test_failure_hints():
+    assert "authentication" in probe.failure_hint("http_error", 401)
+    assert "authentication" in probe.failure_hint("http_error", 403)
+    assert "endpoint path" in probe.failure_hint("http_error", 404)
+    assert "down or overloaded" in probe.failure_hint("http_error", 503)
+    assert "could not connect" in probe.failure_hint("http_error", None)
+    assert "--timeout" in probe.failure_hint("timeout", None)
+    assert "not with SPARQL results" in probe.failure_hint("parse_error", 200)
+
+
+def test_failure_message_includes_hint():
+    result = probe.run(FakeClient({"probe": http_error(401)}), make_ctx())
+    assert result.message.startswith("endpoint did not answer: HTTP 401 -> ")
+    assert "BAQUEANO_HEADER_AUTHORIZATION" in result.message

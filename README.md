@@ -3,9 +3,12 @@
 A pathfinder for unknown SPARQL endpoints: point it at an endpoint and it
 discovers which data and vocabularies sit behind it, on a time budget.
 
-Status: milestone 4 of v0. The full discovery pipeline runs and writes
-discovery.json, shapes.ttl, found-shapes.ttl, schema.mmd, queries/*.rq and
-queries.log; report.md comes in milestone 5. See [SPEC.md](SPEC.md).
+Status: milestone 5 of v0. `baqueano explore` runs the full discovery and
+writes report.md, discovery.json, shapes.ttl, found-shapes.ttl, schema.mmd,
+queries/*.rq and queries.log. See [SPEC.md](SPEC.md).
+
+Exit codes: 0 complete, 1 complete with fallbacks or skipped steps,
+2 endpoint unreachable or invalid arguments.
 
 ## Install (development)
 

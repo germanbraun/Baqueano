@@ -22,6 +22,7 @@ from baqueano.client import Budget, SparqlClient
 from baqueano.context import Context, Settings
 from baqueano.generate import diagram
 from baqueano.generate import queries as queries_gen
+from baqueano.generate import report
 from baqueano.generate import shapes as shapes_gen
 from baqueano.model import Discovery, StepResult, discovery_to_dict
 from baqueano.steps import classes, graphs, links, namespaces, probe, profile, shapes_found, vocab, void
@@ -145,7 +146,8 @@ def write_outputs(out: Path, discovery: Discovery) -> None:
     if discovery.found_shapes_ttl:
         (out / "found-shapes.ttl").write_text(discovery.found_shapes_ttl, encoding="utf-8")
 
-    for file_name, generator in (("shapes.ttl", shapes_gen.render), ("schema.mmd", diagram.render)):
+    for file_name, generator in (("report.md", report.render), ("shapes.ttl", shapes_gen.render),
+                                ("schema.mmd", diagram.render)):
         try:
             (out / file_name).write_text(generator(discovery), encoding="utf-8")
         except Exception:
@@ -181,6 +183,8 @@ def explore(args: argparse.Namespace) -> int:
     )
     ctx = Context(discovery, Settings(sample=args.sample, max_classes=args.max_classes, graph=args.graph))
 
+    logger.debug("settings: budget=%ss timeout=%ss delay=%ss sample=%d max_classes=%d graph=%s",
+                 args.budget, args.timeout, args.delay, args.sample, args.max_classes, args.graph)
     print(f"baqueano: exploring {args.endpoint} (budget {args.budget:.0f}s) -> {out}", file=sys.stderr)
     with open(out / "queries.log", "w", encoding="utf-8") as log_file:
         def log(entry: dict) -> None:
@@ -208,11 +212,11 @@ def explore(args: argparse.Namespace) -> int:
     write_outputs(out, discovery)
     code = exit_code(discovery.steps)
     if code == EXIT_ERROR:
-        print("baqueano: the endpoint did not answer; see queries.log", file=sys.stderr)
+        print(f"baqueano: the endpoint did not answer; details in {out / 'queries.log'}", file=sys.stderr)
     else:
         print(f"baqueano: {len(discovery.classes)} classes, {len(discovery.profiles)} profiled, "
-              f"{len(discovery.links)} links, {len(discovery.graphs)} named graph(s); results in {out}",
-              file=sys.stderr)
+              f"{len(discovery.links)} links, {len(discovery.graphs)} named graph(s)", file=sys.stderr)
+        print(f"baqueano: start with {out / 'report.md'}", file=sys.stderr)
     return code
 
 
