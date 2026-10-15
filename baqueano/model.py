@@ -71,10 +71,12 @@ class Discovery:
     steps: list[StepResult] = field(default_factory=list)
     server_header: str | None = None
     has_service_description: bool = False
-    void: dict | None = None
-    found_shapes: list[str] = field(default_factory=list)
+    void: dict | None = None   # see steps/void.py summarize()
+    found_shapes: list[dict] = field(default_factory=list)  # {"shape", "target_class"}
+    found_shapes_ttl: str | None = None  # Turtle copied from the endpoint
     graphs: list[str] = field(default_factory=list)
     triple_count: int | None = None
+    triple_count_exact: bool = False     # False: declared in VoID, or unknown
     classes: list[ClassInfo] = field(default_factory=list)
     ontologies: list[dict] = field(default_factory=list)
     vocabularies: list[dict] = field(default_factory=list)  # namespace, known prefix, number of terms

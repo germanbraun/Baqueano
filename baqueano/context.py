@@ -21,6 +21,14 @@ class Context:
     settings: Settings
 
 
+# From best to worst, to combine the statuses of a step's sub-parts.
+SEVERITY = [model.OK, model.UNSUPPORTED, model.SAMPLED, model.TIMEOUT, model.SKIPPED, model.ERROR]
+
+
+def worst(*statuses: str) -> str:
+    return max(statuses, key=SEVERITY.index)
+
+
 def step_status(outcome_status: str) -> str:
     """Map a client outcome status to the step status reported for a failure."""
     if outcome_status == "timeout":

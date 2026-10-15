@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import logging
 
-from rdflib import Graph, URIRef
+from rdflib import URIRef
 from rdflib.namespace import RDF
 
 from baqueano import model, scope
 from baqueano.context import Context, step_status
 from baqueano.model import StepResult
+from baqueano.rdf import parse_rdf
 
 logger = logging.getLogger(__name__)
 
@@ -23,44 +24,15 @@ SD_STEP = "probe:service-description"
 SD_ACCEPT = "text/turtle"
 SD_SERVICE = URIRef("http://www.w3.org/ns/sparql-service-description#Service")
 
-# Content type fragment -> rdflib parser format.
-RDF_FORMATS = {
-    "turtle": "turtle",
-    "n-triples": "nt",
-    "rdf+xml": "xml",
-    "ld+json": "json-ld",
-    "trig": "trig",
-}
-
 
 def ask_query(graph: str | None) -> str:
     return f"ASK {{ {scope.where('?s ?p ?o', graph)} }}"
 
 
-def rdf_format(content_type: str | None) -> str | None:
-    """rdflib format for a Content-Type header, or None if it is not RDF."""
-    if not content_type:
-        return None
-    content_type = content_type.lower()
-    for fragment, fmt in RDF_FORMATS.items():
-        if fragment in content_type:
-            return fmt
-    return None
-
-
 def has_service_description(text: str, content_type: str | None) -> bool:
     """True if `text` is RDF containing an sd:Service."""
-    fmt = rdf_format(content_type)
-    if fmt is None:
-        logger.debug("service description: content type %r is not RDF", content_type)
-        return False
-    graph = Graph()
-    try:
-        graph.parse(data=text, format=fmt)
-    except Exception as e:  # rdflib raises many different parser errors
-        logger.debug("service description: could not parse as %s: %s", fmt, e)
-        return False
-    return (None, RDF.type, SD_SERVICE) in graph
+    graph = parse_rdf(text, content_type)
+    return graph is not None and (None, RDF.type, SD_SERVICE) in graph
 
 
 def run(client, ctx: Context) -> StepResult:

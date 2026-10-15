@@ -255,6 +255,21 @@ def test_headers_are_sent_but_never_logged():
     assert "s3cret" not in json.dumps(log)
 
 
+def test_construct_returns_rdf_text():
+    def handler(request):
+        assert request.headers["accept"].startswith("text/turtle")
+        return httpx.Response(200, text="<http://a> <http://b> <http://c> .",
+                              headers={"content-type": "text/turtle"})
+
+    client, log, _ = make_client(handler)
+    outcome = client.construct("shapes:construct", "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }")
+    assert outcome.status == "ok"
+    assert outcome.text.startswith("<http://a>")
+    assert outcome.content_type == "text/turtle"
+    assert outcome.rows is None
+    assert log[0]["kind"] == "construct"
+
+
 def test_get_document_returns_text_and_server():
     def handler(request):
         assert request.method == "GET"

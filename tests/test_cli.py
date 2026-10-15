@@ -31,6 +31,7 @@ def test_exit_codes():
     ok = StepResult(probe.NAME, model.OK)
     assert cli.exit_code([ok]) == cli.EXIT_OK
     assert cli.exit_code([ok, StepResult("classes", model.SAMPLED)]) == cli.EXIT_DEGRADED
+    assert cli.exit_code([ok, StepResult("void", model.UNSUPPORTED)]) == cli.EXIT_OK
     assert cli.exit_code([StepResult(probe.NAME, model.ERROR, "down")]) == cli.EXIT_ERROR
     assert cli.exit_code([]) == cli.EXIT_ERROR
 

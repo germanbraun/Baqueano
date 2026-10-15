@@ -21,7 +21,7 @@ from baqueano import DEFAULT_USER_AGENT, __version__, model
 from baqueano.client import Budget, SparqlClient
 from baqueano.context import Context, Settings
 from baqueano.model import Discovery, StepResult, discovery_to_dict
-from baqueano.steps import probe
+from baqueano.steps import classes, graphs, probe, shapes_found, void
 
 logger = logging.getLogger("baqueano")
 
@@ -29,11 +29,18 @@ EXIT_OK = 0
 EXIT_DEGRADED = 1
 EXIT_ERROR = 2
 
+# Step statuses that do not make a run "degraded" (exit code 1).
+COMPLETE_STATUSES = {model.OK, model.UNSUPPORTED}
+
 ENV_HEADER_PREFIX = "BAQUEANO_HEADER_"
 
-# Pipeline order. Milestone 2+ adds the remaining steps here.
+# Pipeline order, cheapest first. Milestone 3 adds vocab, profile and links.
 STEPS: list[tuple[str, Callable]] = [
     (probe.NAME, probe.run),
+    (void.NAME, void.run),
+    (shapes_found.NAME, shapes_found.run),
+    (graphs.NAME, graphs.run),
+    (classes.NAME, classes.run),
 ]
 
 
@@ -113,15 +120,18 @@ def run_steps(client, ctx: Context, steps=STEPS) -> list[StepResult]:
 def exit_code(steps: list[StepResult]) -> int:
     if not steps or steps[0].name != probe.NAME or steps[0].status != model.OK:
         return EXIT_ERROR
-    if all(s.status == model.OK for s in steps):
+    if all(s.status in COMPLETE_STATUSES for s in steps):
         return EXIT_OK
     return EXIT_DEGRADED
 
 
-def write_discovery(out: Path, discovery: Discovery) -> None:
+def write_outputs(out: Path, discovery: Discovery) -> None:
+    """Everything except queries.log (written as queries go)."""
     path = out / "discovery.json"
     path.write_text(json.dumps(discovery_to_dict(discovery), indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8")
+    if discovery.found_shapes_ttl:
+        (out / "found-shapes.ttl").write_text(discovery.found_shapes_ttl, encoding="utf-8")
 
 
 def explore(args: argparse.Namespace) -> int:
@@ -160,15 +170,18 @@ def explore(args: argparse.Namespace) -> int:
             run_steps(client, ctx)
         except KeyboardInterrupt:
             print("baqueano: interrupted, writing what was discovered so far", file=sys.stderr)
-            write_discovery(out, discovery)
+            write_outputs(out, discovery)
             return EXIT_DEGRADED
         finally:
             client.close()
 
-    write_discovery(out, discovery)
+    write_outputs(out, discovery)
     code = exit_code(discovery.steps)
     if code == EXIT_ERROR:
         print("baqueano: the endpoint did not answer; see queries.log", file=sys.stderr)
+    else:
+        print(f"baqueano: {len(discovery.classes)} classes, {len(discovery.graphs)} named graph(s); "
+              f"results in {out}", file=sys.stderr)
     return code
 
 

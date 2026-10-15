@@ -31,6 +31,15 @@ pipeline steps, outputs and milestones.
   `error` is for HTTP/parse failures that are not a clear "unsupported".
 - A failing step never stops the pipeline (except a failed probe, which
   means the endpoint is unreachable: exit code 2).
+- Exit code 1 means some step is `sampled`, `timeout`, `skipped` or `error`.
+  `ok` and `unsupported` count as complete. Something simply not published
+  (no VoID, no shapes) is `ok` with a message saying so.
+- Fallback figures (VoID-declared counts, samples) are always marked as not
+  exact in the model (`count_exact`, `triple_count_exact`) so the report can
+  say so.
+- Steps with several sub-queries combine statuses with `context.worst()`.
+- Client step labels (`"classes:sample"`, `"void:partitions"`, ...) identify
+  queries in queries.log and are the keys FakeClient answers by.
 
 ## Secrets
 

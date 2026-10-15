@@ -31,6 +31,7 @@ from baqueano import DEFAULT_USER_AGENT
 logger = logging.getLogger(__name__)
 
 SPARQL_JSON = "application/sparql-results+json"
+RDF_ACCEPT = "text/turtle, application/n-triples;q=0.9, application/rdf+xml;q=0.5"
 
 MIN_QUERY_SECONDS = 1.0      # don't start a query with less budget than this
 MAX_RETRIES = 2              # retries on 429/503
@@ -64,6 +65,8 @@ class QueryOutcome:
     boolean: bool | None       # for ASK
     error: str | None
     http_status: int | None = None
+    text: str | None = None          # for CONSTRUCT: the RDF as returned
+    content_type: str | None = None  # for CONSTRUCT: to pick the RDF parser
 
 
 @dataclass
@@ -186,27 +189,37 @@ class SparqlClient:
 
     def query(self, step: str, query: str) -> QueryOutcome:
         """Run a SELECT or ASK query and return its parsed results."""
+        return self._query(step, query, construct=False)
+
+    def construct(self, step: str, query: str) -> QueryOutcome:
+        """Run a CONSTRUCT query; the RDF comes back unparsed in .text."""
+        return self._query(step, query, construct=True)
+
+    def _query(self, step: str, query: str, construct: bool) -> QueryOutcome:
+        kind = "construct" if construct else "query"
         started = time.perf_counter()
         try:
-            sent = self._send(form={"query": query}, accept=SPARQL_JSON)
+            sent = self._send(form={"query": query}, accept=RDF_ACCEPT if construct else SPARQL_JSON)
         except KeyboardInterrupt:
-            self._write_log(step, "query", query, "interrupted", time.perf_counter() - started,
+            self._write_log(step, kind, query, "interrupted", time.perf_counter() - started,
                             None, "POST", None, "interrupted by user")
             raise
-        duration = time.perf_counter() - started
+        duration = round(time.perf_counter() - started, 3)
 
-        rows, boolean, status, error = None, None, sent.status, sent.error
-        if sent.status == "ok":
+        outcome = QueryOutcome(step=step, query=query, status=sent.status, duration_s=duration,
+                               rows=None, boolean=None, error=sent.error, http_status=sent.http_status)
+        if sent.status == "ok" and construct:
+            outcome.text = sent.response.text
+            outcome.content_type = sent.response.headers.get("content-type")
+        elif sent.status == "ok":
             try:
-                rows, boolean = parse_sparql_json(sent.response.text)
+                outcome.rows, outcome.boolean = parse_sparql_json(sent.response.text)
             except ValueError as e:
-                status, error = "parse_error", str(e)
+                outcome.status, outcome.error = "parse_error", str(e)
 
-        outcome = QueryOutcome(step=step, query=query, status=status, duration_s=round(duration, 3),
-                               rows=rows, boolean=boolean, error=error, http_status=sent.http_status)
-        n_rows = len(rows) if rows is not None else None
-        self._write_log(step, "query", query, status, outcome.duration_s, n_rows, sent.method,
-                        sent.http_status, error)
+        n_rows = len(outcome.rows) if outcome.rows is not None else None
+        self._write_log(step, kind, query, outcome.status, duration, n_rows, sent.method,
+                        sent.http_status, outcome.error)
         return outcome
 
     def get_document(self, step: str, accept: str) -> DocumentOutcome:

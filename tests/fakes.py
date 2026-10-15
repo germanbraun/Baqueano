@@ -46,6 +46,12 @@ def ask(value: bool) -> QueryOutcome:
     return QueryOutcome(step="", query="", status="ok", duration_s=0.0, rows=None, boolean=value, error=None)
 
 
+def rdf(text: str, content_type: str = "text/turtle") -> QueryOutcome:
+    """A CONSTRUCT answer."""
+    return QueryOutcome(step="", query="", status="ok", duration_s=0.0, rows=None, boolean=None, error=None,
+                        text=text, content_type=content_type)
+
+
 def failed(status: str, error: str | None = None) -> QueryOutcome:
     return QueryOutcome(step="", query="", status=status, duration_s=0.0, rows=None, boolean=None,
                         error=error or status)
@@ -86,7 +92,11 @@ class FakeClient:
         self.calls.append((step, query))
         recorded = self._next(step)
         return QueryOutcome(step=step, query=query, status=recorded.status, duration_s=recorded.duration_s,
-                            rows=recorded.rows, boolean=recorded.boolean, error=recorded.error)
+                            rows=recorded.rows, boolean=recorded.boolean, error=recorded.error,
+                            text=recorded.text, content_type=recorded.content_type)
+
+    def construct(self, step: str, query: str) -> QueryOutcome:
+        return self.query(step, query)
 
     def get_document(self, step: str, accept: str) -> DocumentOutcome:
         self.calls.append((step, accept))
