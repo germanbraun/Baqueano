@@ -20,6 +20,9 @@ from typing import Callable
 from baqueano import DEFAULT_USER_AGENT, __version__, model
 from baqueano.client import Budget, SparqlClient
 from baqueano.context import Context, Settings
+from baqueano.generate import diagram
+from baqueano.generate import queries as queries_gen
+from baqueano.generate import shapes as shapes_gen
 from baqueano.model import Discovery, StepResult, discovery_to_dict
 from baqueano.steps import classes, graphs, links, namespaces, probe, profile, shapes_found, vocab, void
 
@@ -131,12 +134,34 @@ def exit_code(steps: list[StepResult]) -> int:
 
 
 def write_outputs(out: Path, discovery: Discovery) -> None:
-    """Everything except queries.log (written as queries go)."""
+    """Everything except queries.log (written as queries go).
+
+    discovery.json goes first: it is the source of truth, and a bug in a
+    generator must not lose it. Each generator then runs on its own.
+    """
     path = out / "discovery.json"
     path.write_text(json.dumps(discovery_to_dict(discovery), indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8")
     if discovery.found_shapes_ttl:
         (out / "found-shapes.ttl").write_text(discovery.found_shapes_ttl, encoding="utf-8")
+
+    for file_name, generator in (("shapes.ttl", shapes_gen.render), ("schema.mmd", diagram.render)):
+        try:
+            (out / file_name).write_text(generator(discovery), encoding="utf-8")
+        except Exception:
+            logger.exception("could not generate %s", file_name)
+
+    try:
+        files = queries_gen.render(discovery)
+    except Exception:
+        logger.exception("could not generate queries")
+        return
+    queries_dir = out / "queries"
+    queries_dir.mkdir(exist_ok=True)
+    for old in queries_dir.glob("[0-9][0-9]-*.rq"):   # stale files from a previous run
+        old.unlink()
+    for file_name, text in files.items():
+        (queries_dir / file_name).write_text(text, encoding="utf-8")
 
 
 def explore(args: argparse.Namespace) -> int:

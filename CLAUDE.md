@@ -18,8 +18,11 @@ pipeline steps, outputs and milestones.
 - `baqueano/model.py` holds dataclasses only: no I/O, no network.
 - Each step is `run(client, ctx) -> StepResult` in `baqueano/steps/`.
   Steps fill `ctx.discovery`; the CLI appends the returned StepResult.
-- Each generator (milestone 4) is `render(discovery) -> str` and reads only
-  the Discovery (i.e. what `discovery.json` holds).
+- Each generator in `baqueano/generate/` is `render(discovery) -> str`
+  (`queries.render` returns `{file name: text}`) and reads only the Discovery,
+  i.e. what `discovery.json` holds. Output must be deterministic: the same
+  discovery renders byte-for-byte the same (diffable between runs).
+- Shape and query thresholds live only in `generate/thresholds.py`.
 - `--graph` scoping goes through `baqueano/scope.py`, never inline.
 
 ## Errors
