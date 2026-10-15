@@ -3,8 +3,9 @@
 A pathfinder for unknown SPARQL endpoints: point it at an endpoint and it
 discovers which data and vocabularies sit behind it, on a time budget.
 
-Status: milestone 2 of v0 (probe, VoID, existing shapes, graphs, classes).
-See [SPEC.md](SPEC.md).
+Status: milestone 3 of v0. The full discovery pipeline runs and writes
+discovery.json, found-shapes.ttl and queries.log; report, diagram, shapes and
+queries come in milestone 4. See [SPEC.md](SPEC.md).
 
 ## Install (development)
 

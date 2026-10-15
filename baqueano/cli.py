@@ -21,7 +21,7 @@ from baqueano import DEFAULT_USER_AGENT, __version__, model
 from baqueano.client import Budget, SparqlClient
 from baqueano.context import Context, Settings
 from baqueano.model import Discovery, StepResult, discovery_to_dict
-from baqueano.steps import classes, graphs, probe, shapes_found, void
+from baqueano.steps import classes, graphs, links, namespaces, probe, profile, shapes_found, vocab, void
 
 logger = logging.getLogger("baqueano")
 
@@ -34,13 +34,18 @@ COMPLETE_STATUSES = {model.OK, model.UNSUPPORTED}
 
 ENV_HEADER_PREFIX = "BAQUEANO_HEADER_"
 
-# Pipeline order, cheapest first. Milestone 3 adds vocab, profile and links.
+# Pipeline order, cheapest first. The last two steps send no queries, so they
+# still run when the budget is exhausted.
 STEPS: list[tuple[str, Callable]] = [
     (probe.NAME, probe.run),
     (void.NAME, void.run),
     (shapes_found.NAME, shapes_found.run),
     (graphs.NAME, graphs.run),
     (classes.NAME, classes.run),
+    (vocab.NAME, vocab.run),
+    (profile.NAME, profile.run),
+    (links.NAME, links.run),
+    (namespaces.NAME, namespaces.run),
 ]
 
 
@@ -180,8 +185,9 @@ def explore(args: argparse.Namespace) -> int:
     if code == EXIT_ERROR:
         print("baqueano: the endpoint did not answer; see queries.log", file=sys.stderr)
     else:
-        print(f"baqueano: {len(discovery.classes)} classes, {len(discovery.graphs)} named graph(s); "
-              f"results in {out}", file=sys.stderr)
+        print(f"baqueano: {len(discovery.classes)} classes, {len(discovery.profiles)} profiled, "
+              f"{len(discovery.links)} links, {len(discovery.graphs)} named graph(s); results in {out}",
+              file=sys.stderr)
     return code
 
 

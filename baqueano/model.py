@@ -33,9 +33,11 @@ class PropertyProfile:
     max_values_per_subject: int
     iri_objects: int
     literal_objects: int
-    datatypes: dict[str, int] = field(default_factory=dict)
-    languages: dict[str, int] = field(default_factory=dict)
-    target_classes: dict[str, int] = field(default_factory=dict)
+    datatypes: dict[str, int] = field(default_factory=dict)       # literal values per datatype
+    languages: dict[str, int] = field(default_factory=dict)       # literal values per language tag
+    target_classes: dict[str, int] = field(default_factory=dict)  # checked IRI objects per rdf:type
+    bnode_objects: int = 0
+    objects_checked: int = 0   # distinct IRI objects whose types were looked up (a subsample)
 
 
 @dataclass
@@ -43,9 +45,10 @@ class ClassProfile:
     class_iri: str
     sample_size: int
     sample_method: str         # "first-n" in v0
-    truncated: bool
+    truncated: bool            # a triples batch hit its LIMIT: some values are missing
     example_instance: str | None
     properties: list[PropertyProfile] = field(default_factory=list)
+    failed_batches: int = 0    # triples batches that failed; their subjects are not counted
 
 
 @dataclass
