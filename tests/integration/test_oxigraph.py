@@ -200,3 +200,35 @@ def test_validation_section_in_report(run):
     report = (out / "report.md").read_text()
     assert "## Data quality" in report
     assert "`<http://example.org/p10>`" in report
+
+
+def test_random_offset_sampling_is_reproducible(tmp_path):
+    runs = []
+    for name in ("a", "b"):
+        code, d = explore(tmp_path / name, "--sample", "4", "--class", "schema:Person", "--max-classes", "1")
+        assert code == cli.EXIT_OK, d["steps"]
+        runs.append(d["profiles"][0])
+    person = runs[0]
+    assert (person["class_iri"], person["sample_method"], person["sample_size"]) == (S + "Person", "random-offset", 4)
+    assert runs[0] == runs[1]                                   # same seed, same sample
+
+
+def test_requested_class_is_profiled_first(tmp_path):
+    code, d = explore(tmp_path, "--class", "schema:Place", "--max-classes", "1")
+    assert code == cli.EXIT_OK
+    assert [p["class_iri"] for p in d["profiles"]] == [S + "Place"]
+    assert d["profiles"][0]["sample_method"] == "all"           # 4 places, all read
+
+
+def test_custom_class_property(tmp_path):
+    instance_of = "http://example.org/instanceOf"
+    code, d = explore(tmp_path, "--class-property", instance_of)
+    assert code == cli.EXIT_OK, d["steps"]
+    assert {c["iri"]: c["count"] for c in d["classes"]} == \
+        {"http://example.org/City": 3, "http://example.org/Region": 1}
+    city = next(p for p in d["profiles"] if p["class_iri"] == "http://example.org/City")
+    assert instance_of in {pp["path"] for pp in city["properties"]}
+    table = (tmp_path / "queries" / "12-city-table.rq").read_text()
+    assert f"<{instance_of}> <http://example.org/City>" in table
+    response = httpx.post(QUERY_URL, data={"query": table}, headers={"Accept": "application/sparql-results+json"})
+    assert len(response.json()["results"]["bindings"]) == 3

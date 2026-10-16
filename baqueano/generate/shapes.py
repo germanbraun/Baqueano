@@ -18,7 +18,6 @@ from baqueano import REPO_URL
 from baqueano.generate import thresholds as th
 from baqueano.generate.names import identifier, unique_map
 from baqueano.model import ClassProfile, Discovery, PropertyProfile
-from baqueano.profiling import RDF_TYPE
 from baqueano.vocabularies import KNOWN
 
 logger = logging.getLogger(__name__)
@@ -102,9 +101,20 @@ def add_list(g: Graph, id_prefix: str, items: list) -> BNode:
     return cells[0]
 
 
-def add_node_shape(g: Graph, shape: URIRef, prof: ClassProfile) -> None:
+def add_target(g: Graph, shape: URIRef, class_iri: str, class_property: str) -> None:
+    """sh:targetClass means rdf:type; any other class property needs a SPARQL target (SHACL-AF)."""
+    if class_property == str(RDF.type):
+        g.add((shape, SH.targetClass, URIRef(class_iri)))
+        return
+    target = BNode(f"{shape.split(':')[-1]}_target")
+    g.add((shape, SH.target, target))
+    g.add((target, RDF.type, SH.SPARQLTarget))
+    g.add((target, SH.select, Literal(f"SELECT ?this WHERE {{ ?this <{class_property}> <{class_iri}> }}")))
+
+
+def add_node_shape(g: Graph, shape: URIRef, prof: ClassProfile, class_property: str = str(RDF.type)) -> None:
     g.add((shape, RDF.type, SH.NodeShape))
-    g.add((shape, SH.targetClass, URIRef(prof.class_iri)))
+    add_target(g, shape, prof.class_iri, class_property)
     g.add((shape, BAQ.sampleSize, Literal(prof.sample_size)))
     g.add((shape, BAQ.sampleMethod, Literal(prof.sample_method)))
     if prof.truncated:
@@ -117,7 +127,7 @@ def add_node_shape(g: Graph, shape: URIRef, prof: ClassProfile) -> None:
     # discovery always serializes to the same Turtle (diffable between runs).
     shape_id = shape.split(":")[-1]
     for i, pp in enumerate(prof.properties):
-        if pp.path == RDF_TYPE:      # already expressed by sh:targetClass
+        if pp.path == class_property:      # already expressed by the target
             continue
         c = constraints_for(pp)
         if c is None:
@@ -148,7 +158,7 @@ def render(discovery: Discovery) -> str:
     g.bind("baq", BAQ)
     names = shape_names(discovery.profiles)
     for prof in discovery.profiles:
-        add_node_shape(g, URIRef(names[prof.class_iri]), prof)
+        add_node_shape(g, URIRef(names[prof.class_iri]), prof, discovery.class_property)
     header = (f"# Draft SHACL shapes inferred by Baqueano from {discovery.endpoint}\n"
               "# Observations from a sample, not rules: every constraint has sh:severity sh:Info\n"
               "# and baq:support (share of sampled instances that have the property).\n\n")

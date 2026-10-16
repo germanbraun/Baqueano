@@ -27,6 +27,22 @@ python3 -m venv .venv
 .venv/bin/baqueano explore https://example.org/sparql --out ./baqueano-out
 ```
 
+Choosing what gets profiled:
+
+- `--class IRI` (repeatable) profiles these classes first. Full IRIs or known
+  prefixes work, e.g. `--class schema:Person`. Otherwise classes go by size,
+  and known infrastructure classes (value nodes, positions, image records)
+  come last.
+- `--class-property IRI` sets what links instances to classes (default
+  `rdf:type`). Wikidata needs `wdt:P31`:
+
+```bash
+.venv/bin/baqueano explore https://query.wikidata.org/sparql --class-property wdt:P31 --class wd:Q5
+```
+
+When a class's size is known, its sample is taken as blocks at random
+offsets. `--seed N` (default 1) makes the sample reproducible.
+
 Credentials go in environment variables, not on the command line:
 
 ```bash

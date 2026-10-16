@@ -63,6 +63,41 @@ METADATA_NAMESPACES = {
 }
 
 
+RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+
+# Classes that are mostly plumbing: numerous, but rarely what a user queries.
+# Profiled only after the other classes (never skipped). Each entry comes
+# from a real run; extend it when a new endpoint shows the same pattern.
+INFRASTRUCTURE_NAMESPACES = {
+    "http://wikiba.se/ontology#",                    # Wikidata statements, ranks, value nodes
+    "http://www.wikidata.org/prop/novalue/",         # Wikidata "no value" markers
+    "http://biohackathon.org/resource/faldo#",       # UniProt sequence positions and regions
+}
+INFRASTRUCTURE_CLASSES = {
+    "http://dbpedia.org/ontology/Image",              # DBpedia: one node per image file
+    "http://dbpedia.org/ontology/CareerStation",      # DBpedia: reified career entries
+    "http://xmlns.com/foaf/0.1/Document",             # DBpedia: Wikipedia page records
+}
+
+
+def is_infrastructure(iri: str) -> bool:
+    return iri in INFRASTRUCTURE_CLASSES or namespace(iri) in INFRASTRUCTURE_NAMESPACES
+
+
+def expand(text: str) -> str | None:
+    """'wd:Q5' -> full IRI with a known prefix; a full IRI (or <IRI>) as is; None if unknown."""
+    text = text.strip()
+    if text.startswith("<") and text.endswith(">"):
+        text = text[1:-1]
+    if "://" in text or text.startswith("urn:"):
+        return text if is_safe_iri(text) else None
+    prefix, sep, local = text.partition(":")
+    if sep and prefix in PREFIXES:
+        iri = PREFIXES[prefix] + local
+        return iri if is_safe_iri(iri) else None
+    return None
+
+
 def split_iri(iri: str) -> tuple[str, str]:
     """Split at the last '#' or '/': ('https://schema.org/', 'Person')."""
     cut = max(iri.rfind("#"), iri.rfind("/"))

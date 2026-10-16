@@ -30,7 +30,7 @@ def test_how_to_read_separates_exact_estimated_and_missed():
     assert "**Exact:** total triples; instance counts of 1 classes; the list of named graphs" in block
     assert "instance counts of 1 classes (declared in VoID)" in block
     assert "1 classes were found by sampling, without counts" in block
-    assert "first 50–200 instances of each class (not random)" in block
+    assert "2 class(es) from the first instances the engine returns (count unknown, not random)" in block
     assert "**vocab** (timeout): ontology query failed" in block
     assert "profile of `schema:Place` is truncated" in block
 
@@ -125,3 +125,18 @@ def test_data_quality_section():
 
 def test_no_validation():
     assert "No validation ran" in section(report.render(sample_discovery()), "Data quality")
+
+
+def test_sampling_methods_and_class_settings_are_explained():
+    d = sample_discovery()
+    d.profiles[0].sample_method = "random-offset"
+    d.profiles[1].sample_method = "all"
+    d.sample_seed = 7
+    d.class_property = "http://www.wikidata.org/prop/direct/P31"
+    d.requested_classes = ["http://www.wikidata.org/entity/Q5"]
+    text = report.render(d)
+    assert "- Classes via: `wdt:P31` (instead of `rdf:type`)" in text
+    assert "- Requested classes: `wd:Q5`" in text
+    block = section(text, "How to read this")
+    assert "property profiles of 1 small classes (every instance was read)" in block
+    assert "1 class(es) from blocks of consecutive instances at random offsets (seed 7)" in block

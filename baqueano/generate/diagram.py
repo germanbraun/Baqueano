@@ -24,11 +24,11 @@ def classes_to_show(discovery: Discovery) -> list[str]:
     return ranked[:th.DIAGRAM_MAX_CLASSES]
 
 
-def attributes(prof: ClassProfile) -> list[str]:
+def attributes(prof: ClassProfile, class_property: str = RDF_TYPE) -> list[str]:
     """'+datatype name' for mostly-literal properties."""
     lines = []
     for pp in prof.properties:
-        if pp.path == RDF_TYPE or pp.support < th.DIAGRAM_MIN_SUPPORT:
+        if pp.path == class_property or pp.support < th.DIAGRAM_MIN_SUPPORT:
             continue
         if pp.literal_objects == 0 or pp.literal_objects < pp.iri_objects + pp.bnode_objects:
             continue
@@ -51,7 +51,7 @@ def render(discovery: Discovery) -> str:
     for iri in shown:
         out.append(f'  class {ids[iri]}["{shorten(iri).strip("<>")}"]')
         if iri in profiles:
-            out.extend(f"  {ids[iri]} : {attr}" for attr in attributes(profiles[iri]))
+            out.extend(f"  {ids[iri]} : {attr}" for attr in attributes(profiles[iri], discovery.class_property))
     for link in discovery.links:
         if link.support < th.DIAGRAM_MIN_SUPPORT or link.source_class not in ids or link.target_class not in ids:
             continue

@@ -25,6 +25,7 @@ from baqueano.generate import queries as queries_gen
 from baqueano.generate import report
 from baqueano.generate import shapes as shapes_gen
 from baqueano.model import Discovery, StepResult, discovery_to_dict
+from baqueano.vocabularies import expand
 from baqueano.steps import classes, graphs, links, namespaces, probe, profile, shapes_found, vocab, void
 from baqueano.steps import validate as validate_step   # cli.validate() checks arguments
 
@@ -71,6 +72,12 @@ def build_parser() -> argparse.ArgumentParser:
     explore.add_argument("--sample", type=int, default=200, metavar="N", help="instances sampled per class")
     explore.add_argument("--max-classes", type=int, default=30, metavar="N", help="classes to profile")
     explore.add_argument("--graph", metavar="IRI", help="restrict discovery to one named graph")
+    explore.add_argument("--class", dest="classes", action="append", default=[], metavar="IRI",
+                         help="class to profile first, repeatable; full IRI or known prefix (e.g. wd:Q5)")
+    explore.add_argument("--class-property", default="rdf:type", metavar="IRI",
+                         help="property linking instances to classes (e.g. wdt:P31 for Wikidata)")
+    explore.add_argument("--seed", type=int, default=1, metavar="N",
+                         help="seed for random-offset sampling (same seed, same sample)")
     explore.add_argument("--delay", type=float, default=0.5, metavar="SEC", help="pause between queries")
     explore.add_argument("--header", action="append", default=[], metavar='"K: V"',
                          help="extra HTTP header, repeatable (prefer BAQUEANO_HEADER_* env vars for secrets)")
@@ -96,6 +103,11 @@ def validate(args: argparse.Namespace) -> str | None:
         return "--delay cannot be negative"
     if args.sample < 1 or args.max_classes < 1:
         return "--sample and --max-classes must be at least 1"
+    if expand(args.class_property) is None:
+        return f"--class-property: not an IRI or known prefix:name: {args.class_property}"
+    for text in args.classes:
+        if expand(text) is None:
+            return f"--class: not an IRI or known prefix:name: {text}"
     return None
 
 
@@ -190,15 +202,22 @@ def explore(args: argparse.Namespace) -> int:
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    class_property = expand(args.class_property)
+    requested = list(dict.fromkeys(expand(c) for c in args.classes))
     discovery = Discovery(
         endpoint=args.endpoint,
         started_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         graph_scope=args.graph,
+        class_property=class_property,
+        requested_classes=requested,
+        sample_seed=args.seed,
     )
-    ctx = Context(discovery, Settings(sample=args.sample, max_classes=args.max_classes, graph=args.graph))
+    ctx = Context(discovery, Settings(sample=args.sample, max_classes=args.max_classes, graph=args.graph,
+                                      class_property=class_property, classes=requested, seed=args.seed))
 
-    logger.debug("settings: budget=%ss timeout=%ss delay=%ss sample=%d max_classes=%d graph=%s",
-                 args.budget, args.timeout, args.delay, args.sample, args.max_classes, args.graph)
+    logger.debug("settings: budget=%ss timeout=%ss delay=%ss sample=%d max_classes=%d graph=%s "
+                 "class_property=%s classes=%s seed=%d", args.budget, args.timeout, args.delay, args.sample,
+                 args.max_classes, args.graph, class_property, requested, args.seed)
     print(f"baqueano: exploring {args.endpoint} (budget {args.budget:.0f}s) -> {out}", file=sys.stderr)
     with open(out / "queries.log", "w", encoding="utf-8") as log_file:
         def log(entry: dict) -> None:

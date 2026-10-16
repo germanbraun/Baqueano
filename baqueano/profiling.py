@@ -19,13 +19,13 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from baqueano.model import ClassProfile, PropertyProfile
+from baqueano.vocabularies import RDF_TYPE  # re-exported: callers use profiling.RDF_TYPE
 
-RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
 XSD_STRING = "http://www.w3.org/2001/XMLSchema#string"
 RDF_LANGSTRING = "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"
 
 OBJECTS_PER_PROPERTY = 20      # IRI objects type-checked per property
-SAMPLE_METHOD = "first-n"
+MAX_CHECKED_OBJECTS = 400      # per class; the most common properties get them first
 
 # Label properties, in order of preference for the generated queries.
 LABEL_PROPERTIES = [
@@ -73,16 +73,27 @@ def triples_from_rows(rows: list[dict]) -> list[Triple]:
     return triples
 
 
-def objects_to_check(triples: list[Triple], per_property: int = OBJECTS_PER_PROPERTY) -> dict[str, list[str]]:
-    """For each property, the first `per_property` distinct IRI objects to type-check.
-    rdf:type is skipped: its objects are classes."""
-    chosen: dict[str, list[str]] = {}
-    for _, p, o in triples:
-        if p == RDF_TYPE or o["type"] != "uri":
+def objects_to_check(triples: list[Triple], per_property: int = OBJECTS_PER_PROPERTY,
+                     class_property: str = RDF_TYPE, max_total: int = MAX_CHECKED_OBJECTS) -> dict[str, list[str]]:
+    """For each property, the first `per_property` distinct IRI objects to type-check,
+    at most `max_total` in all: properties used by more subjects get theirs first.
+    The class property (rdf:type by default) is skipped: its objects are classes."""
+    candidates: dict[str, list[str]] = {}
+    subjects: dict[str, set[str]] = {}
+    for s, p, o in triples:
+        if p == class_property or o["type"] != "uri":
             continue
-        objs = chosen.setdefault(p, [])
+        subjects.setdefault(p, set()).add(s)
+        objs = candidates.setdefault(p, [])
         if len(objs) < per_property and o["value"] not in objs:
             objs.append(o["value"])
+    chosen: dict[str, list[str]] = {}
+    budget = max_total
+    for p in sorted(candidates, key=lambda p: (-len(subjects[p]), p)):
+        if budget <= 0:
+            break
+        chosen[p] = candidates[p][:budget]
+        budget -= len(chosen[p])
     return chosen
 
 
@@ -110,6 +121,7 @@ def build_profile(
     object_types: dict[str, set[str]],
     truncated: bool = False,
     failed_batches: int = 0,
+    sample_method: str = "first-n",
 ) -> ClassProfile:
     """Compute the ClassProfile of `class_iri` from its sample.
 
@@ -159,7 +171,7 @@ def build_profile(
     return ClassProfile(
         class_iri=class_iri,
         sample_size=len(subjects),
-        sample_method=SAMPLE_METHOD,
+        sample_method=sample_method,
         truncated=truncated,
         example_instance=richest_subject(subjects, props_per_subject),
         properties=properties,

@@ -44,7 +44,7 @@ class PropertyProfile:
 class ClassProfile:
     class_iri: str
     sample_size: int
-    sample_method: str         # "first-n" in v0
+    sample_method: str         # "all" | "random-offset" | "first-n" (see steps/profile.py)
     truncated: bool            # a triples batch hit its LIMIT: some values are missing
     example_instance: str | None
     properties: list[PropertyProfile] = field(default_factory=list)
@@ -90,6 +90,9 @@ class Discovery:
     endpoint: str
     started_at: str
     graph_scope: str | None = None
+    class_property: str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"   # --class-property
+    requested_classes: list[str] = field(default_factory=list)   # --class, profiled first
+    sample_seed: int = 1                                         # --seed for random-offset sampling
     steps: list[StepResult] = field(default_factory=list)
     server_header: str | None = None
     has_service_description: bool = False

@@ -6,6 +6,7 @@
 #   Organization: name 3/3, location 3/3 -> Place, address 3/3 -> blank node
 # Graph <http://example.org/graph/places>: 4 schema:Place
 #   Place: rdfs:label 4/4 (@en), containedInPlace 3/4 -> Place
+#   Wikidata-style classes: the 4 places also have ex:instanceOf ex:City (3) or ex:Region (1)
 # Graph <http://example.org/graph/meta>: VoID, one SHACL shape, an owl:Ontology, a class label
 #   PersonShape against the 10 people: name minCount 1 -> 0 violations; birthDate minCount 1 -> 1 (p10);
 #   email pattern @example.org -> 0; knows sh:class Person -> 0; sh:or -> not checked
@@ -47,6 +48,10 @@ ex:org3 a schema:Organization ; schema:name "Bosque Coop" ; schema:location ex:p
     ex:place2 a schema:Place ; rdfs:label "El Bolsón"@en ; schema:containedInPlace ex:place4 .
     ex:place3 a schema:Place ; rdfs:label "Villa La Angostura"@en ; schema:containedInPlace ex:place4 .
     ex:place4 a schema:Place ; rdfs:label "Patagonia"@en .
+    ex:place1 ex:instanceOf ex:City .
+    ex:place2 ex:instanceOf ex:City .
+    ex:place3 ex:instanceOf ex:City .
+    ex:place4 ex:instanceOf ex:Region .
 }
 
 <http://example.org/graph/meta> {

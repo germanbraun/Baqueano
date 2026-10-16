@@ -36,7 +36,7 @@ def inferred_specs(discovery: Discovery) -> list[ShapeSpec]:
     for prof in discovery.profiles:
         properties = []
         for pp in prof.properties:
-            if pp.path == RDF_TYPE:
+            if pp.path == discovery.class_property:
                 continue
             c = constraints_for(pp)
             if c is None:
@@ -64,6 +64,11 @@ def inferred_specs(discovery: Discovery) -> list[ShapeSpec]:
 def found_specs(discovery: Discovery) -> tuple[list[ShapeSpec], list[dict]]:
     if not discovery.found_shapes_ttl:
         return [], []
+    if discovery.class_property != RDF_TYPE:
+        # sh:targetClass selects rdf:type instances; our samples follow another property.
+        return [], [{"shape": None, "path": None, "component": "targetClass",
+                     "reason": f"published shapes target rdf:type classes, but classes were discovered "
+                               f"with <{discovery.class_property}>"}]
     graph = parse_rdf(discovery.found_shapes_ttl, "text/turtle")
     if graph is None:
         return [], [{"shape": None, "path": None, "component": "all", "reason": "found-shapes.ttl did not parse"}]

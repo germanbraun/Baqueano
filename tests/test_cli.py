@@ -60,6 +60,8 @@ def test_crashing_step_is_recorded_and_pipeline_continues():
 
 @pytest.mark.parametrize("argv", [
     ["explore", "ftp://x"],
+    ["explore", "http://x", "--class", "unknownprefix:Thing"],
+    ["explore", "http://x", "--class-property", "not an iri"],
     ["explore", "http://x", "--budget", "0"],
     ["explore", "http://x", "--header", "nonsense"],
 ])

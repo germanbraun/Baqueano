@@ -60,10 +60,30 @@ def header(d: Discovery) -> list[str]:
              f"- Explored: {d.started_at}"]
     if d.graph_scope:
         lines.append(f"- Scope: graph `<{d.graph_scope}>` only")
+    if d.class_property != RDF_TYPE:
+        lines.append(f"- Classes via: {code(d.class_property)} (instead of `rdf:type`)")
+    if d.requested_classes:
+        lines.append("- Requested classes: " + ", ".join(code(c) for c in d.requested_classes))
     if d.server_header:
         lines.append(f"- Server: {d.server_header}")
     lines.append(f"- Service description: {'yes' if d.has_service_description else 'no'}")
     return lines + [""]
+
+
+SAMPLING = {
+    "random-offset": "blocks of consecutive instances at random offsets (seed {seed})",
+    "first-n": "the first instances the engine returns (count unknown, not random)",
+}
+
+
+def sampling_text(d: Discovery) -> str:
+    """How the sampled (not complete) profiles were drawn, e.g. '8 classes from blocks at ...'."""
+    parts = []
+    for method, text in SAMPLING.items():
+        n = sum(1 for p in d.profiles if p.sample_method == method)
+        if n:
+            parts.append(f"{n} class(es) from {text.format(seed=d.sample_seed)}")
+    return "; ".join(parts)
 
 
 def how_to_read(d: Discovery) -> list[str]:
@@ -84,10 +104,13 @@ def how_to_read(d: Discovery) -> list[str]:
     if d.graphs and d.graph_scope is None:
         exact.append("the list of named graphs (up to the listing limit)")
     if d.profiles:
-        sizes = sorted({p.sample_size for p in d.profiles})
-        size_text = str(sizes[0]) if len(sizes) == 1 else f"{sizes[0]}–{sizes[-1]}"
-        estimated.append(f"property profiles: from the first {size_text} instances of each class "
-                         "(not random), so support and cardinality are estimates")
+        methods = {p.sample_method for p in d.profiles}
+        complete = [p for p in d.profiles if p.sample_method == "all"]
+        if complete:
+            exact.append(f"property profiles of {len(complete)} small classes (every instance was read)")
+        if methods - {"all"}:
+            estimated.append("property profiles of the other classes: " + sampling_text(d) +
+                             ", so support and cardinality are estimates")
         estimated.append(f"target classes and links: from up to {OBJECTS_PER_PROPERTY} checked objects "
                          "per property")
         estimated.append("inferred shapes (shapes.ttl): observations from those samples, not rules")
@@ -262,7 +285,7 @@ def profile_section(d: Discovery, prof: ClassProfile) -> list[str]:
         notes.append(f"**{prof.failed_batches} batch(es) failed**")
     if prof.example_instance:
         notes.append(f"example: `<{prof.example_instance}>`")
-    props = [pp for pp in prof.properties if pp.path != RDF_TYPE]
+    props = [pp for pp in prof.properties if pp.path != d.class_property]
     rows = [[code(pp.path), f"{pp.support:.2f}", pp.max_values_per_subject, values_cell(pp)]
             for pp in props[:MAX_PROPERTIES]]
     return ([f"### {title}", "", ". ".join(notes) + ".", ""]
@@ -275,7 +298,9 @@ def profiles_section(d: Discovery) -> list[str]:
         return ["## Class profiles", "", "No class was profiled.", ""]
     lines = ["## Class profiles", "",
              "Support = share of sampled instances that have the property. "
-             "Max per instance = most values seen on one instance.", ""]
+             "Max per instance = most values seen on one instance.", "",
+             "Classes are profiled in this order: requested ones (`--class`), then by size, with known "
+             "infrastructure classes (value nodes, positions, image records, ...) last.", ""]
     if d.label_properties:
         lines += ["Label properties seen: " + ", ".join(code(p) for p in d.label_properties) + ".", ""]
     for prof in d.profiles:

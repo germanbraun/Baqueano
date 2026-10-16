@@ -14,6 +14,9 @@ class Settings:
     sample: int = 200          # instances sampled per class
     max_classes: int = 30      # classes to profile
     graph: str | None = None   # --graph scope
+    class_property: str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"   # what links instances to classes
+    classes: list[str] = field(default_factory=list)   # --class: profiled first, in this order
+    seed: int = 1              # random-offset sampling is reproducible for a given seed
 
 
 @dataclass

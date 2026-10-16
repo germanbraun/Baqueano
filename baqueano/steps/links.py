@@ -16,12 +16,12 @@ from baqueano.profiling import RDF_TYPE
 NAME = "links"
 
 
-def links_from_profiles(profiles: list[ClassProfile]) -> list[Link]:
-    """All class-to-class links, strongest first (pure)."""
+def links_from_profiles(profiles: list[ClassProfile], class_property: str = RDF_TYPE) -> list[Link]:
+    """All class-to-class links, strongest first (pure). The class property itself is not a link."""
     links = []
     for prof in profiles:
         for pp in prof.properties:
-            if pp.path == RDF_TYPE or pp.objects_checked == 0:
+            if pp.path == class_property or pp.objects_checked == 0:
                 continue
             for target, n in pp.target_classes.items():
                 support = round(pp.support * n / pp.objects_checked, 4)
@@ -31,7 +31,7 @@ def links_from_profiles(profiles: list[ClassProfile]) -> list[Link]:
 
 
 def run(client, ctx: Context) -> StepResult:
-    ctx.discovery.links = links_from_profiles(ctx.discovery.profiles)
+    ctx.discovery.links = links_from_profiles(ctx.discovery.profiles, ctx.discovery.class_property)
     n_classes = len({link.source_class for link in ctx.discovery.links} |
                     {link.target_class for link in ctx.discovery.links})
     return StepResult(NAME, model.OK, f"{len(ctx.discovery.links)} link(s) between {n_classes} classes")
