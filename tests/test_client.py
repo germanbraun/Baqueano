@@ -293,3 +293,30 @@ def test_get_document_error_still_reports_server():
     assert doc.status == "http_error"
     assert doc.server_header == "Virtuoso"
     assert doc.text is None
+
+
+def test_502_is_retried_once_then_succeeds():
+    responses = iter([httpx.Response(502, text="Bad Gateway"), json_response({"boolean": True})])
+    client, _, sleeps = make_client(lambda r: next(responses), delay_s=0)
+    assert client.query("probe", "ASK {}").status == "ok"
+    assert sleeps == [DEFAULT_RETRY_AFTER_S]
+
+
+def test_error_body_is_one_line():
+    trace = "java.lang.Exception: boom\n\tat com.example.Foo(Foo.java:1)\n\tat com.example.Bar"
+    client, _, _ = make_client(lambda r: httpx.Response(400, text=trace))
+    error = client.query("graphs", "SELECT ...").error
+    assert "\n" not in error and "\t" not in error
+    assert error.startswith("HTTP 400: java.lang.Exception: boom at com.example.Foo")
+
+
+def test_get_document_uses_its_own_shorter_timeout():
+    seen = {}
+
+    def handler(request):
+        seen["timeout"] = request.extensions["timeout"]["read"]
+        return httpx.Response(200, text="")
+
+    client, _, _ = make_client(handler, timeout_s=30)
+    client.get_document("probe:service-description", "text/turtle", timeout_s=10)
+    assert seen["timeout"] == 10

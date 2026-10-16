@@ -143,6 +143,7 @@ def run(client, ctx: Context) -> StepResult:
         return StepResult(NAME, model.OK, "no classes to profile")
 
     statuses = [model.OK]
+    out_of_budget = False
     for i, cls in enumerate(candidates):
         prof, status, message = profile_class(client, cls.iri, settings.sample, settings.graph)
         logger.debug("profile %s: %s (%s)", cls.iri, status, message)
@@ -152,6 +153,7 @@ def run(client, ctx: Context) -> StepResult:
         statuses.append(model.OK if status == model.UNSUPPORTED else status)
         if status == model.SKIPPED:
             logger.debug("budget exhausted after %d of %d classes", i, len(candidates))
+            out_of_budget = True
             break
 
     discovery.label_properties = profiling.detect_label_properties(discovery.profiles)
@@ -162,7 +164,9 @@ def run(client, ctx: Context) -> StepResult:
     truncated = sum(p.truncated for p in discovery.profiles)
     if truncated:
         parts.append(f"{truncated} truncated")
-    status = worst(*statuses)
-    if status == model.SKIPPED:
+    failed = sum(1 for s in statuses if s in (model.ERROR, model.TIMEOUT))
+    if failed:
+        parts.append(f"{failed} class(es) with failed queries")
+    if out_of_budget:
         parts.append("budget ran out")
-    return StepResult(NAME, status, "; ".join(parts))
+    return StepResult(NAME, worst(*statuses), "; ".join(parts))

@@ -31,6 +31,17 @@ export BAQUEANO_HEADER_AUTHORIZATION="Bearer ..."
 
 ## Tests
 
+Unit tests (no network):
+
 ```bash
 .venv/bin/pytest
+```
+
+Integration tests against a real engine (Oxigraph in Docker, loaded with
+`tests/integration/data/sample.trig`); they are skipped when it is not running:
+
+```bash
+docker compose -f tests/integration/docker-compose.yml up -d
+.venv/bin/pytest tests/integration
+docker compose -f tests/integration/docker-compose.yml down
 ```

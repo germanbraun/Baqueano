@@ -1,0 +1,11 @@
+# Oxigraph for the integration tests (in-memory; the tests load data/sample.trig).
+#
+#   docker compose -f tests/integration/docker-compose.yml up -d
+#   .venv/bin/pytest tests/integration
+#   docker compose -f tests/integration/docker-compose.yml down
+services:
+  oxigraph:
+    image: ghcr.io/oxigraph/oxigraph:0.4.11
+    command: ["serve", "--bind", "0.0.0.0:7878", "--union-default-graph"]
+    ports:
+      - "127.0.0.1:7878:7878"

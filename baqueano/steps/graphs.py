@@ -37,6 +37,9 @@ def list_graphs(client, discovery: Discovery, graph: str | None) -> tuple[str, s
         discovery.graphs = [graph]
         return model.OK, f"scoped to <{graph}>"
     listed = client.query(NAME, graphs_query())
+    if listed.status == "http_error" and listed.http_status == 400:
+        # e.g. Blazegraph in triples mode (Wikidata) rejects GRAPH patterns outright.
+        return model.UNSUPPORTED, "named graphs not supported by this endpoint (HTTP 400 on GRAPH ?g)"
     if listed.status != "ok":
         return step_status(listed.status), f"graph listing failed: {listed.error}"
     discovery.graphs = [g for g in (iri(r, "g") for r in listed.rows) if g]

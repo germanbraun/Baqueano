@@ -1,5 +1,5 @@
 from baqueano.steps import graphs
-from tests.fakes import FakeClient, budget_exhausted, iri, lit, select, timeout
+from tests.fakes import FakeClient, budget_exhausted, http_error, iri, lit, select, timeout
 from tests.helpers import make_ctx
 
 XSD_INT = "http://www.w3.org/2001/XMLSchema#integer"
@@ -56,3 +56,12 @@ def test_limit_reached_is_reported():
     rows = [{"g": iri(f"http://ex/g{i}")} for i in range(graphs.GRAPHS_LIMIT)]
     client = FakeClient({graphs.NAME: select(rows), graphs.COUNT_STEP: count(1)})
     assert "there may be more" in graphs.run(client, make_ctx()).message
+
+
+def test_engine_without_named_graphs_is_unsupported_not_error():
+    client = FakeClient({graphs.NAME: http_error(400), graphs.COUNT_STEP: count(9)})
+    ctx = make_ctx()
+    result = graphs.run(client, ctx)
+    assert result.status == "unsupported"
+    assert "named graphs not supported" in result.message
+    assert ctx.discovery.triple_count == 9

@@ -34,7 +34,8 @@ SPARQL_JSON = "application/sparql-results+json"
 RDF_ACCEPT = "text/turtle, application/n-triples;q=0.9, application/rdf+xml;q=0.5"
 
 MIN_QUERY_SECONDS = 1.0      # don't start a query with less budget than this
-MAX_RETRIES = 2              # retries on 429/503
+MAX_RETRIES = 2              # retries on RETRY_STATUSES
+RETRY_STATUSES = (429, 502, 503)  # rate limit, transient gateway error, busy
 DEFAULT_RETRY_AFTER_S = 5.0  # when 429/503 comes without a usable Retry-After
 MAX_RETRY_AFTER_S = 60.0     # never wait longer than this for one retry
 ERROR_BODY_CHARS = 300       # how much of an error response to keep
@@ -222,10 +223,11 @@ class SparqlClient:
                         sent.http_status, outcome.error)
         return outcome
 
-    def get_document(self, step: str, accept: str) -> DocumentOutcome:
-        """GET the endpoint URL without a query (e.g. for its Service Description)."""
+    def get_document(self, step: str, accept: str, timeout_s: float | None = None) -> DocumentOutcome:
+        """GET the endpoint URL without a query (e.g. for its Service Description).
+        timeout_s, when given, replaces the per-query timeout if it is shorter."""
         started = time.perf_counter()
-        sent = self._send(form=None, accept=accept)
+        sent = self._send(form=None, accept=accept, timeout_s=timeout_s)
         duration = round(time.perf_counter() - started, 3)
         resp = sent.response
         outcome = DocumentOutcome(
@@ -244,7 +246,7 @@ class SparqlClient:
 
     # -- internals ----------------------------------------------------------
 
-    def _send(self, form: dict | None, accept: str) -> _Response:
+    def _send(self, form: dict | None, accept: str, timeout_s: float | None = None) -> _Response:
         """One logical request: budget check, pause, 405 -> GET, 429/503 retries.
 
         form=None means a plain GET of the endpoint.
@@ -259,7 +261,7 @@ class SparqlClient:
         method = "POST" if form is not None else "GET"
         retries = 0
         while True:
-            timeout = min(self.timeout_s, self.budget.remaining())
+            timeout = min(self.timeout_s, timeout_s or self.timeout_s, self.budget.remaining())
             self._sent_any = True
             try:
                 if method == "POST":
@@ -279,7 +281,7 @@ class SparqlClient:
                 method = "GET"
                 continue
 
-            if code in (429, 503) and retries < MAX_RETRIES:
+            if code in RETRY_STATUSES and retries < MAX_RETRIES:
                 wait = parse_retry_after(resp.headers.get("retry-after"))
                 if wait + MIN_QUERY_SECONDS > self.budget.remaining():
                     return _Response("http_error", resp, f"HTTP {code}; Retry-After {wait:.0f}s exceeds budget",
@@ -290,7 +292,7 @@ class SparqlClient:
                 continue
 
             if code >= 400:
-                body = resp.text[:ERROR_BODY_CHARS].strip()
+                body = " ".join(resp.text.split())[:ERROR_BODY_CHARS]   # one line: engines send stack traces
                 return _Response("http_error", resp, f"HTTP {code}: {body}", method, code)
 
             return _Response("ok", resp, None, method, code)

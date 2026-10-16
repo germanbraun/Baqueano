@@ -1,7 +1,7 @@
 from baqueano.model import ClassInfo
 from baqueano.profiling import RDF_TYPE
 from baqueano.steps import profile
-from tests.fakes import FakeClient, bnode, budget_exhausted, iri, lit, select, timeout
+from tests.fakes import FakeClient, bnode, budget_exhausted, http_error, iri, lit, select, timeout
 from tests.helpers import make_ctx
 
 EX = "http://ex/"
@@ -148,3 +148,17 @@ def test_graph_scope():
     profile.run(client, ctx_with([ClassInfo(PERSON, 1, True)], graph="http://ex/g"))
     for step in (label("sample"), label("triples")):
         assert "GRAPH <http://ex/g>" in client.queries_for(step)[0]
+
+
+def test_budget_message_survives_an_earlier_error():
+    place = EX + "Place"
+    client = FakeClient({
+        label("sample"): subjects(1),
+        label("triples"): http_error(500),
+        label("sample", place): budget_exhausted(),
+    })
+    ctx = ctx_with([ClassInfo(PERSON, 9, True), ClassInfo(place, 5, True)])
+    result = profile.run(client, ctx)
+    assert result.status == "error"
+    assert "1 class(es) with failed queries" in result.message
+    assert "budget ran out" in result.message

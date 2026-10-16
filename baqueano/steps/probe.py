@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 NAME = "probe"
 SD_STEP = "probe:service-description"
 SD_ACCEPT = "text/turtle"
+SD_TIMEOUT_S = 10.0   # optional extra: some endpoints hang on a GET without query
 SD_SERVICE = URIRef("http://www.w3.org/ns/sparql-service-description#Service")
 
 
@@ -67,7 +68,7 @@ def run(client, ctx: Context) -> StepResult:
     if ask.boolean is None:
         return StepResult(NAME, model.ERROR, "ASK query did not return a boolean")
 
-    doc = client.get_document(SD_STEP, SD_ACCEPT)
+    doc = client.get_document(SD_STEP, SD_ACCEPT, timeout_s=SD_TIMEOUT_S)
     discovery.server_header = doc.server_header
     if doc.status == "ok":
         discovery.has_service_description = has_service_description(doc.text or "", doc.content_type)

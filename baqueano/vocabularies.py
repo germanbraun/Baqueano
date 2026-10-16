@@ -47,6 +47,7 @@ KNOWN: dict[str, tuple[str, str]] = {
     "http://dbpedia.org/resource/": ("dbr", "DBpedia resources"),
     "http://purl.uniprot.org/core/": ("up", "UniProt core"),
     "http://purl.obolibrary.org/obo/": ("obo", "OBO"),
+    "http://biohackathon.org/resource/faldo#": ("faldo", "FALDO"),
 }
 
 PREFIXES: dict[str, str] = {prefix: ns for ns, (prefix, _) in KNOWN.items()}

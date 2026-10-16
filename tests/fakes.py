@@ -102,7 +102,7 @@ class FakeClient:
     def construct(self, step: str, query: str) -> QueryOutcome:
         return self.query(step, query)
 
-    def get_document(self, step: str, accept: str) -> DocumentOutcome:
+    def get_document(self, step: str, accept: str, timeout_s: float | None = None) -> DocumentOutcome:
         self.calls.append((step, accept))
         recorded = self._next(step)
         return DocumentOutcome(step=step, status=recorded.status, duration_s=recorded.duration_s,

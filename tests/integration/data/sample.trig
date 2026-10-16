@@ -1,0 +1,56 @@
+# Integration test data. The expected figures (asserted in test_oxigraph.py):
+#
+# Default graph: 10 schema:Person, 3 schema:Organization, 3 schema:PostalAddress (blank nodes)
+#   Person: name 10/10 (xsd:string), birthDate 9/10 (xsd:date), worksFor 10/10 -> Organization,
+#           knows 5/10 (max 2) -> Person, nick 3/10 (@en/@es, max 2), email 2/10
+#   Organization: name 3/3, location 3/3 -> Place, address 3/3 -> blank node
+# Graph <http://example.org/graph/places>: 4 schema:Place
+#   Place: rdfs:label 4/4 (@en), containedInPlace 3/4 -> Place
+# Graph <http://example.org/graph/meta>: VoID, one SHACL shape, an owl:Ontology, a class label
+
+@prefix schema: <https://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix void: <http://rdfs.org/ns/void#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix ex: <http://example.org/> .
+
+ex:p1  a schema:Person ; schema:name "Ana" ;    schema:birthDate "1990-01-01"^^xsd:date ; schema:worksFor ex:org1 ;
+       schema:knows ex:p2 , ex:p3 ; schema:nick "Uno"@es , "One"@en ; schema:email "ana@example.org" .
+ex:p2  a schema:Person ; schema:name "Bruno" ;  schema:birthDate "1985-02-02"^^xsd:date ; schema:worksFor ex:org1 ;
+       schema:knows ex:p1 ; schema:nick "Dos"@es ; schema:email "bruno@example.org" .
+ex:p3  a schema:Person ; schema:name "Carla" ;  schema:birthDate "1979-03-03"^^xsd:date ; schema:worksFor ex:org1 ;
+       schema:knows ex:p4 ; schema:nick "Three"@en .
+ex:p4  a schema:Person ; schema:name "Diego" ;  schema:birthDate "1992-04-04"^^xsd:date ; schema:worksFor ex:org1 ;
+       schema:knows ex:p5 .
+ex:p5  a schema:Person ; schema:name "Elena" ;  schema:birthDate "1988-05-05"^^xsd:date ; schema:worksFor ex:org2 ;
+       schema:knows ex:p1 .
+ex:p6  a schema:Person ; schema:name "Fede" ;   schema:birthDate "1995-06-06"^^xsd:date ; schema:worksFor ex:org2 .
+ex:p7  a schema:Person ; schema:name "Gabi" ;   schema:birthDate "1970-07-07"^^xsd:date ; schema:worksFor ex:org2 .
+ex:p8  a schema:Person ; schema:name "Hugo" ;   schema:birthDate "1999-08-08"^^xsd:date ; schema:worksFor ex:org3 .
+ex:p9  a schema:Person ; schema:name "Inés" ;   schema:birthDate "2001-09-09"^^xsd:date ; schema:worksFor ex:org3 .
+ex:p10 a schema:Person ; schema:name "Juan" ;   schema:worksFor ex:org3 .
+
+ex:org1 a schema:Organization ; schema:name "Lago SA" ;    schema:location ex:place1 ;
+        schema:address [ a schema:PostalAddress ; schema:streetAddress "Mitre 1" ] .
+ex:org2 a schema:Organization ; schema:name "Cerro SRL" ;  schema:location ex:place2 ;
+        schema:address [ a schema:PostalAddress ; schema:streetAddress "Moreno 2" ] .
+ex:org3 a schema:Organization ; schema:name "Bosque Coop" ; schema:location ex:place3 ;
+        schema:address [ a schema:PostalAddress ; schema:streetAddress "Elflein 3" ] .
+
+<http://example.org/graph/places> {
+    ex:place1 a schema:Place ; rdfs:label "Bariloche"@en ; schema:containedInPlace ex:place4 .
+    ex:place2 a schema:Place ; rdfs:label "El Bolsón"@en ; schema:containedInPlace ex:place4 .
+    ex:place3 a schema:Place ; rdfs:label "Villa La Angostura"@en ; schema:containedInPlace ex:place4 .
+    ex:place4 a schema:Place ; rdfs:label "Patagonia"@en .
+}
+
+<http://example.org/graph/meta> {
+    ex:dataset a void:Dataset ; void:triples 999 ; void:vocabulary <https://schema.org/> ;
+        void:classPartition [ void:class schema:Person ; void:entities 10 ] .
+    ex:onto a owl:Ontology ; rdfs:label "Baqueano test ontology"@en ; owl:versionInfo "1.0" .
+    schema:Person rdfs:label "Person"@en , "Persona"@es .
+    ex:PersonShape a sh:NodeShape ; sh:targetClass schema:Person ;
+        sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+}
