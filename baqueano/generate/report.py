@@ -20,6 +20,9 @@ MAX_CLASSES = 50
 MAX_PROPERTIES = 25
 MAX_LINKS = 30
 MAX_SHAPES = 30
+MAX_FOUND_RESULTS = 40
+MAX_OUTLIERS = 30
+MAX_NOT_CHECKED = 15
 
 
 # -- formatting helpers --------------------------------------------------------
@@ -88,6 +91,8 @@ def how_to_read(d: Discovery) -> list[str]:
         estimated.append(f"target classes and links: from up to {OBJECTS_PER_PROPERTY} checked objects "
                          "per property")
         estimated.append("inferred shapes (shapes.ttl): observations from those samples, not rules")
+    if d.validation:
+        estimated.append("data quality: shapes checked on the same samples only")
     for s in d.steps:
         if s.status in (model.SAMPLED, model.TIMEOUT, model.SKIPPED, model.ERROR):
             missed.append(f"**{s.name}** ({s.status}): {s.message or ''}")
@@ -97,6 +102,10 @@ def how_to_read(d: Discovery) -> list[str]:
         if p.failed_batches:
             missed.append(f"profile of {code(p.class_iri)}: {p.failed_batches} batch(es) failed, "
                           "their instances are not counted")
+
+    if d.validation_not_checked:
+        missed.append(f"{len(d.validation_not_checked)} published shape constraint(s) could not be checked "
+                      "(see Data quality)")
 
     lines = ["## How to read this", ""]
     lines += ["**Exact:** " + ("; ".join(exact) if exact else "nothing (no exact figure could be computed)") + ".",
@@ -174,6 +183,58 @@ def found_shapes_section(d: Discovery) -> list[str]:
             + table(["Shape", "Target class"], rows) + more(MAX_SHAPES, len(d.found_shapes), "shapes") + [""])
 
 
+def examples_cell(examples: list[str]) -> str:
+    return ", ".join(f"`<{e}>`" for e in examples)
+
+
+def data_quality_section(d: Discovery) -> list[str]:
+    lines = ["## Data quality", ""]
+    if not d.validation and not d.validation_not_checked:
+        return lines + ["No validation ran (no class was profiled).", ""]
+    lines += [f"Shapes checked against the sampled instances (up to {OBJECTS_PER_PROPERTY} objects per property "
+              "type-checked). Counts are instances, not values. `sh:class` has no subclass reasoning and is "
+              "decided only for objects whose types were fetched; the rest count as unknown.", ""]
+
+    found = [r for r in d.validation if r.source == "found"]
+    lines += ["### Published shapes", ""]
+    if found:
+        rows = [[code(r.shape) if not r.shape.startswith("_:") else r.shape, code(r.target_class),
+                 code(r.path) if r.path else "(node)", f"sh:{r.component} {r.parameter}", r.severity,
+                 r.checked, r.violations, r.unknown or "", examples_cell(r.examples)]
+                for r in found[:MAX_FOUND_RESULTS]]
+        lines += table(["Shape", "Class", "Property", "Constraint", "Severity", "Checked", "Violations",
+                        "Unknown", "Examples"], rows)
+        lines += more(MAX_FOUND_RESULTS, len(found), "results")
+        failing = sum(1 for r in found if r.violations)
+        lines += ["", f"{failing} of {len(found)} constraint(s) have violations in the sample."]
+    else:
+        lines.append("No published shape targets a profiled class.")
+    lines.append("")
+
+    outliers = [r for r in d.validation if r.source == "inferred" and r.violations]
+    lines += ["### Outliers against the inferred shapes", ""]
+    if outliers:
+        outliers.sort(key=lambda r: (-r.violations, r.target_class, r.path or ""))
+        rows = [[code(r.target_class), code(r.path) if r.path else "(node)", f"sh:{r.component} {r.parameter}",
+                 f"{r.violations} of {r.checked}", examples_cell(r.examples)] for r in outliers[:MAX_OUTLIERS]]
+        lines += table(["Class", "Property", "Constraint", "Instances", "Examples"], rows)
+        lines += more(MAX_OUTLIERS, len(outliers), "outliers")
+    else:
+        lines.append("None: every sampled instance fits the inferred shapes.")
+    lines.append("")
+
+    if d.validation_not_checked:
+        lines += ["### Not checked", ""]
+        for nc in d.validation_not_checked[:MAX_NOT_CHECKED]:
+            where = f" on {code(nc['path'])}" if nc.get("path") else ""
+            shape = nc.get("shape") or "found-shapes.ttl"
+            lines.append(f"- `{shape}`{where}: sh:{nc['component']}: {nc['reason']}")
+        if len(d.validation_not_checked) > MAX_NOT_CHECKED:
+            lines.append(f"- … {len(d.validation_not_checked) - MAX_NOT_CHECKED} more in discovery.json")
+        lines.append("")
+    return lines
+
+
 def values_cell(pp) -> str:
     """Short description of what the values look like."""
     parts = []
@@ -247,7 +308,7 @@ def files_section(d: Discovery) -> list[str]:
 
 def render(discovery: Discovery) -> str:
     sections = [header, how_to_read, steps_section, dataset_section, classes_section, vocabularies_section,
-                found_shapes_section, profiles_section, links_section, files_section]
+                found_shapes_section, data_quality_section, profiles_section, links_section, files_section]
     lines: list[str] = []
     for section in sections:
         lines += section(discovery)

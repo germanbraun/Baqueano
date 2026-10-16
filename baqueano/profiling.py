@@ -16,6 +16,7 @@ Definitions, for one class and its sample of subjects S (|S| = sample_size):
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass, field
 
 from baqueano.model import ClassProfile, PropertyProfile
 
@@ -37,6 +38,18 @@ LABEL_PROPERTIES = [
 ]
 
 Triple = tuple[str, str, dict]   # (subject IRI, property IRI, object term)
+
+
+@dataclass
+class Sample:
+    """The raw sample behind a ClassProfile. Kept in memory for the validate
+    step only; never written to discovery.json (it can be large)."""
+    class_iri: str
+    subjects: list[str]                      # profiled subjects (the focus nodes)
+    triples: list[Triple]
+    object_types: dict[str, set[str]] = field(default_factory=dict)
+    checked: set[str] = field(default_factory=set)   # objects whose types were looked up
+    truncated: bool = False
 
 
 def term_key(term: dict) -> tuple:

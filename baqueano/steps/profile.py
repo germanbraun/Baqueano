@@ -69,12 +69,14 @@ def classes_to_profile(classes: list[ClassInfo], max_classes: int) -> tuple[list
     return chosen[:max_classes], metadata
 
 
-def profile_class(client, class_iri: str, sample: int, graph: str | None) -> tuple[ClassProfile | None, str, str]:
-    """Profile one class. Returns (profile or None, status, message)."""
+def profile_class(client, class_iri: str, sample: int, graph: str | None
+                  ) -> tuple[ClassProfile | None, profiling.Sample | None, str, str]:
+    """Profile one class. Returns (profile, raw sample, status, message); profile
+    and sample are None when nothing could be profiled."""
     # 1. Sample of subjects.
     sampled = client.query(step_label(class_iri, "sample"), sample_query(class_iri, sample, graph))
     if sampled.status != "ok":
-        return None, step_status(sampled.status), f"sample failed: {sampled.error}"
+        return None, None, step_status(sampled.status), f"sample failed: {sampled.error}"
     subjects, bnodes = [], 0
     for row in sampled.rows:
         term = row.get("s")
@@ -85,7 +87,7 @@ def profile_class(client, class_iri: str, sample: int, graph: str | None) -> tup
         elif term["value"] not in subjects:
             subjects.append(term["value"])
     if not subjects:
-        return None, model.UNSUPPORTED, f"no IRI instances to profile ({bnodes} blank node(s))"
+        return None, None, model.UNSUPPORTED, f"no IRI instances to profile ({bnodes} blank node(s))"
 
     # 2. Triples of the sample, in batches.
     statuses = [model.OK]
@@ -104,7 +106,7 @@ def profile_class(client, class_iri: str, sample: int, graph: str | None) -> tup
         rows.extend(outcome.rows)
         profiled.extend(batch)
     if not profiled:
-        return None, worst(*statuses), f"all {failed} triples batch(es) failed"
+        return None, None, worst(*statuses), f"all {failed} triples batch(es) failed"
     triples = profiling.triples_from_rows(rows)
 
     # 3. Types of a subsample of IRI objects.
@@ -132,7 +134,8 @@ def profile_class(client, class_iri: str, sample: int, graph: str | None) -> tup
         notes.append("truncated")
     if failed:
         notes.append(f"{failed} batch(es) failed")
-    return prof, worst(*statuses), ", ".join(notes)
+    raw = profiling.Sample(class_iri, profiled, triples, object_types, checked_ok, truncated)
+    return prof, raw, worst(*statuses), ", ".join(notes)
 
 
 def run(client, ctx: Context) -> StepResult:
@@ -145,10 +148,11 @@ def run(client, ctx: Context) -> StepResult:
     statuses = [model.OK]
     out_of_budget = False
     for i, cls in enumerate(candidates):
-        prof, status, message = profile_class(client, cls.iri, settings.sample, settings.graph)
+        prof, raw, status, message = profile_class(client, cls.iri, settings.sample, settings.graph)
         logger.debug("profile %s: %s (%s)", cls.iri, status, message)
         if prof is not None:
             discovery.profiles.append(prof)
+            ctx.samples[cls.iri] = raw
         # A class with only blank-node instances is a v0 limitation, not a degraded run.
         statuses.append(model.OK if status == model.UNSUPPORTED else status)
         if status == model.SKIPPED:

@@ -7,6 +7,10 @@ Status: milestone 5 of v0. `baqueano explore` runs the full discovery and
 writes report.md, discovery.json, shapes.ttl, found-shapes.ttl, schema.mmd,
 queries/*.rq and queries.log. See [SPEC.md](SPEC.md).
 
+Since v0, `explore` also validates the sampled instances against the shapes
+published in the endpoint and against its own inferred shapes (a SHACL Core
+subset), in the "Data quality" section of report.md.
+
 Exit codes: 0 complete, 1 complete with fallbacks or skipped steps,
 2 endpoint unreachable, invalid arguments, or an unreadable discovery.json.
 

@@ -18,7 +18,8 @@ def test_starts_with_how_to_read():
     headings = [line for line in text.splitlines() if line.startswith("## ")]
     assert headings[0] == "## How to read this"
     assert headings == ["## How to read this", "## Discovery steps", "## Dataset", "## Classes",
-                        "## Vocabularies", "## Shapes published in the endpoint", "## Class profiles",
+                        "## Vocabularies", "## Shapes published in the endpoint", "## Data quality",
+                        "## Class profiles",
                         "## Links between classes", "## Files"]
 
 
@@ -96,3 +97,31 @@ def test_reads_only_what_discovery_json_holds():
     d = sample_discovery()
     reloaded = discovery_from_dict(json.loads(json.dumps(discovery_to_dict(d))))
     assert report.render(reloaded) == report.render(d)
+
+
+def test_data_quality_section():
+    from baqueano.model import ConstraintResult
+    d = sample_discovery()
+    d.validation = [
+        ConstraintResult("http://ex/PersonShape", "found", "https://schema.org/Person", "https://schema.org/email",
+                         "minCount", "1", "Violation", 200, 118, 0, ["http://ex/person/3"]),
+        ConstraintResult("urn:baqueano:shape:Person", "inferred", "https://schema.org/Person",
+                         "https://schema.org/birthDate", "datatype", "xsd:date", "Info", 200, 2, 0, ["http://ex/p7"]),
+        ConstraintResult("urn:baqueano:shape:Person", "inferred", "https://schema.org/Person",
+                         "https://schema.org/name", "minCount", "1", "Info", 200, 0),
+    ]
+    d.validation_not_checked = [{"shape": "http://ex/PersonShape", "path": None, "component": "or",
+                                 "reason": "not supported by Baqueano's validator"}]
+    text = report.render(d)
+    block = section(text, "Data quality")
+    assert ("| `<http://ex/PersonShape>` | `schema:Person` | `schema:email` | sh:minCount 1 | Violation | 200 | 118 |"
+            "  | `<http://ex/person/3>` |") in block
+    assert "1 of 1 constraint(s) have violations in the sample." in block
+    assert "| `schema:Person` | `schema:birthDate` | sh:datatype xsd:date | 2 of 200 | `<http://ex/p7>` |" in block
+    assert "schema:name" not in block.split("### Outliers")[1]          # no violations: not an outlier
+    assert "- `http://ex/PersonShape`: sh:or: not supported" in block
+    assert "1 published shape constraint(s) could not be checked" in section(text, "How to read this")
+
+
+def test_no_validation():
+    assert "No validation ran" in section(report.render(sample_discovery()), "Data quality")

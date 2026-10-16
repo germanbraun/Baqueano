@@ -26,6 +26,7 @@ from baqueano.generate import report
 from baqueano.generate import shapes as shapes_gen
 from baqueano.model import Discovery, StepResult, discovery_to_dict
 from baqueano.steps import classes, graphs, links, namespaces, probe, profile, shapes_found, vocab, void
+from baqueano.steps import validate as validate_step   # cli.validate() checks arguments
 
 logger = logging.getLogger("baqueano")
 
@@ -38,8 +39,8 @@ COMPLETE_STATUSES = {model.OK, model.UNSUPPORTED}
 
 ENV_HEADER_PREFIX = "BAQUEANO_HEADER_"
 
-# Pipeline order, cheapest first. The last two steps send no queries, so they
-# still run when the budget is exhausted.
+# Pipeline order, cheapest first. The last three steps send no queries, so
+# they still run when the budget is exhausted.
 STEPS: list[tuple[str, Callable]] = [
     (probe.NAME, probe.run),
     (void.NAME, void.run),
@@ -50,6 +51,7 @@ STEPS: list[tuple[str, Callable]] = [
     (profile.NAME, profile.run),
     (links.NAME, links.run),
     (namespaces.NAME, namespaces.run),
+    (validate_step.NAME, validate_step.run),
 ]
 
 

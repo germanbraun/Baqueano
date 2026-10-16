@@ -23,6 +23,11 @@ pipeline steps, outputs and milestones.
   i.e. what `discovery.json` holds. Output must be deterministic: the same
   discovery renders byte-for-byte the same (diffable between runs).
 - Shape and query thresholds live only in `generate/thresholds.py`.
+- Raw samples (`ctx.samples`, `profiling.Sample`) live only in memory for the
+  validate step; discovery.json keeps the validation results, not the sample.
+  So `render` can redraw the data-quality section but cannot re-validate.
+- `validation.py` checks a SHACL Core subset. An unsupported feature must be
+  added to `validation_not_checked` with a reason, never silently skipped.
 - `--graph` scoping goes through `baqueano/scope.py`, never inline.
 
 ## Errors

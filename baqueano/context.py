@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from baqueano import model
 from baqueano.model import Discovery
+from baqueano.profiling import Sample
 
 
 @dataclass
@@ -19,6 +20,9 @@ class Settings:
 class Context:
     discovery: Discovery
     settings: Settings
+    # Raw samples by class IRI, filled by the profile step for the validate
+    # step. In memory only: not part of the Discovery.
+    samples: dict[str, Sample] = field(default_factory=dict)
 
 
 # From best to worst, to combine the statuses of a step's sub-parts.

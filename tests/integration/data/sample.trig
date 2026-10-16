@@ -7,6 +7,8 @@
 # Graph <http://example.org/graph/places>: 4 schema:Place
 #   Place: rdfs:label 4/4 (@en), containedInPlace 3/4 -> Place
 # Graph <http://example.org/graph/meta>: VoID, one SHACL shape, an owl:Ontology, a class label
+#   PersonShape against the 10 people: name minCount 1 -> 0 violations; birthDate minCount 1 -> 1 (p10);
+#   email pattern @example.org -> 0; knows sh:class Person -> 0; sh:or -> not checked
 
 @prefix schema: <https://schema.org/> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -15,6 +17,7 @@
 @prefix void: <http://rdfs.org/ns/void#> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix ex: <http://example.org/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
 ex:p1  a schema:Person ; schema:name "Ana" ;    schema:birthDate "1990-01-01"^^xsd:date ; schema:worksFor ex:org1 ;
        schema:knows ex:p2 , ex:p3 ; schema:nick "Uno"@es , "One"@en ; schema:email "ana@example.org" .
@@ -52,5 +55,9 @@ ex:org3 a schema:Organization ; schema:name "Bosque Coop" ; schema:location ex:p
     ex:onto a owl:Ontology ; rdfs:label "Baqueano test ontology"@en ; owl:versionInfo "1.0" .
     schema:Person rdfs:label "Person"@en , "Persona"@es .
     ex:PersonShape a sh:NodeShape ; sh:targetClass schema:Person ;
-        sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+        sh:property [ sh:path schema:name ; sh:minCount 1 ] ,
+                    [ sh:path schema:birthDate ; sh:minCount 1 ] ,
+                    [ sh:path schema:email ; sh:pattern "@example\\.org$" ] ,
+                    [ sh:path schema:knows ; sh:class schema:Person ] ,
+                    [ sh:path schema:nick ; sh:or ( [ sh:datatype rdf:langString ] ) ] .
 }

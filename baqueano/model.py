@@ -60,6 +60,25 @@ class Link:
 
 
 @dataclass
+class ConstraintResult:
+    """One shape constraint checked against one class's sample.
+
+    Counts are of sampled instances (focus nodes), not of values.
+    """
+    shape: str                 # shape IRI, or _:id for a blank node
+    source: str                # "found" (published in the endpoint) | "inferred" (shapes.ttl)
+    target_class: str
+    path: str | None           # None for a node-level constraint (e.g. sh:closed)
+    component: str             # "minCount", "datatype", "class", ...
+    parameter: str             # the constraint's value, as text
+    severity: str              # "Violation" | "Warning" | "Info"
+    checked: int               # instances evaluated
+    violations: int            # instances that fail
+    unknown: int = 0           # instances that could not be decided (e.g. untyped objects for sh:class)
+    examples: list[str] = field(default_factory=list)   # a few failing instances
+
+
+@dataclass
 class StepResult:
     name: str
     status: str                # ok | sampled | timeout | skipped | unsupported | error
@@ -86,6 +105,8 @@ class Discovery:
     label_properties: list[str] = field(default_factory=list)
     profiles: list[ClassProfile] = field(default_factory=list)
     links: list[Link] = field(default_factory=list)
+    validation: list[ConstraintResult] = field(default_factory=list)
+    validation_not_checked: list[dict] = field(default_factory=list)  # {"shape", "path", "component", "reason"}
 
 
 def discovery_to_dict(discovery: Discovery) -> dict:
@@ -99,6 +120,7 @@ def discovery_from_dict(data: dict) -> Discovery:
     data["steps"] = [StepResult(**s) for s in data.get("steps", [])]
     data["classes"] = [ClassInfo(**c) for c in data.get("classes", [])]
     data["links"] = [Link(**link) for link in data.get("links", [])]
+    data["validation"] = [ConstraintResult(**r) for r in data.get("validation", [])]
     profiles = []
     for p in data.get("profiles", []):
         p = dict(p)

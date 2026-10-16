@@ -68,7 +68,7 @@ def prop(discovery, class_iri, path):
 def test_complete_run(run):
     _, code, d = run
     assert code == cli.EXIT_OK, d["steps"]
-    assert [s["status"] for s in d["steps"]] == ["ok"] * 9
+    assert [s["status"] for s in d["steps"]] == ["ok"] * 10
 
 
 def test_graphs_and_size(run):
@@ -159,7 +159,10 @@ def test_generated_queries_run_and_return_rows(run):
 def test_report_written(run):
     out, _, _ = run
     report = (out / "report.md").read_text()
-    assert "**Missed:** nothing, every step completed." in report
+    # The only gap is the sh:or the validator does not support.
+    missed = report.split("**Missed or incomplete:**")[1].split("## Discovery steps")[0]
+    assert [line for line in missed.splitlines() if line.startswith("- ")] == \
+        ["- 1 published shape constraint(s) could not be checked (see Data quality)"]
     assert "| `schema:Person` | Person | 10 | yes |" in report
 
 
@@ -177,3 +180,23 @@ def test_degraded_by_tiny_budget(tmp_path):
     assert code == cli.EXIT_DEGRADED
     assert "skipped" in {s["status"] for s in d["steps"]}
     assert (tmp_path / "report.md").exists()
+
+
+def test_validation_against_published_shape(run):
+    _, _, d = run
+    found = {(r["path"], r["component"]): r for r in d["validation"] if r["source"] == "found"}
+    assert {k: (r["checked"], r["violations"]) for k, r in found.items()} == {
+        (S + "name", "minCount"): (10, 0),
+        (S + "birthDate", "minCount"): (10, 1),
+        (S + "email", "pattern"): (10, 0),
+        (S + "knows", "class"): (10, 0),
+    }
+    assert found[(S + "birthDate", "minCount")]["examples"] == ["http://example.org/p10"]
+    assert [(n["path"], n["component"]) for n in d["validation_not_checked"]] == [(S + "nick", "or")]
+
+
+def test_validation_section_in_report(run):
+    out, _, _ = run
+    report = (out / "report.md").read_text()
+    assert "## Data quality" in report
+    assert "`<http://example.org/p10>`" in report
