@@ -93,3 +93,47 @@ def test_explore_unreachable_endpoint_writes_outputs(tmp_path, monkeypatch):
     report = (out / "report.md").read_text()            # outputs are written even when nothing answered
     assert "**probe** (error)" in report
     assert (out / "queries" / "00-overview.rq").exists()
+
+
+def files_under(folder):
+    return {p.relative_to(folder).as_posix(): p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()}
+
+
+def test_render_matches_write_outputs(tmp_path):
+    from tests.sample_discovery import sample_discovery
+
+    discovery = sample_discovery()
+    discovery.found_shapes_ttl = "@prefix sh: <http://www.w3.org/ns/shacl#> .\n"
+    explored = tmp_path / "explored"
+    explored.mkdir()
+    cli.write_outputs(explored, discovery)
+    json_bytes = (explored / "discovery.json").read_bytes()
+
+    rendered = tmp_path / "rendered"
+    code = cli.main(["render", str(explored / "discovery.json"), "--out", str(rendered)])
+    assert code == cli.EXIT_OK
+    expected = files_under(explored)
+    del expected["discovery.json"]                       # render never writes discovery.json
+    assert files_under(rendered) == expected
+    assert "found-shapes.ttl" in expected and "queries/00-overview.rq" in expected
+
+    # Default --out is the JSON's folder; discovery.json is left untouched.
+    (explored / "report.md").unlink()
+    assert cli.main(["render", str(explored / "discovery.json")]) == cli.EXIT_OK
+    assert (explored / "discovery.json").read_bytes() == json_bytes
+    assert files_under(explored) == {**expected, "discovery.json": json_bytes}
+
+
+@pytest.mark.parametrize("content", ["{not json", "[1, 2]", '{"endpoint": "x", "nonsense": 1}'])
+def test_render_invalid_json_exits_2(tmp_path, capsys, content):
+    path = tmp_path / "discovery.json"
+    path.write_text(content)
+    assert cli.main(["render", str(path)]) == cli.EXIT_ERROR
+    err = capsys.readouterr().err.strip()
+    assert err.startswith("baqueano: ") and "\n" not in err
+    assert not (tmp_path / "report.md").exists()
+
+
+def test_render_missing_file_exits_2(tmp_path, capsys):
+    assert cli.main(["render", str(tmp_path / "nope.json")]) == cli.EXIT_ERROR
+    assert "cannot read" in capsys.readouterr().err

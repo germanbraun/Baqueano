@@ -8,7 +8,7 @@ writes report.md, discovery.json, shapes.ttl, found-shapes.ttl, schema.mmd,
 queries/*.rq and queries.log. See [SPEC.md](SPEC.md).
 
 Exit codes: 0 complete, 1 complete with fallbacks or skipped steps,
-2 endpoint unreachable or invalid arguments.
+2 endpoint unreachable, invalid arguments, or an unreadable discovery.json.
 
 ## Install (development)
 
@@ -28,6 +28,17 @@ Credentials go in environment variables, not on the command line:
 ```bash
 export BAQUEANO_HEADER_AUTHORIZATION="Bearer ..."
 ```
+
+To regenerate the outputs from a saved discovery, without contacting any
+endpoint (for example after upgrading Baqueano or changing a threshold):
+
+```bash
+.venv/bin/baqueano render ./baqueano-out/discovery.json
+```
+
+`render` rewrites report.md, shapes.ttl, schema.mmd, found-shapes.ttl and
+queries/*.rq. It never touches discovery.json or queries.log. `--out DIR`
+writes elsewhere; the default is the folder holding the JSON.
 
 ## Tests
 

@@ -3,7 +3,7 @@
 Exit codes:
     0  discovery complete
     1  complete with degraded or skipped steps
-    2  error (endpoint unreachable, invalid arguments)
+    2  error (endpoint unreachable, invalid arguments, unreadable discovery.json)
 """
 
 from __future__ import annotations
@@ -74,11 +74,18 @@ def build_parser() -> argparse.ArgumentParser:
                          help="extra HTTP header, repeatable (prefer BAQUEANO_HEADER_* env vars for secrets)")
     explore.add_argument("--user-agent", default=DEFAULT_USER_AGENT, metavar="TEXT")
     explore.add_argument("--debug", action="store_true", help="detailed console logging")
+
+    render_cmd = sub.add_parser("render", help="regenerate the outputs from a saved discovery.json (no queries)")
+    render_cmd.add_argument("discovery_json", metavar="DISCOVERY_JSON", help="path to a discovery.json")
+    render_cmd.add_argument("--out", metavar="DIR", help="output folder (default: the folder holding the JSON)")
+    render_cmd.add_argument("--debug", action="store_true", help="detailed console logging")
     return parser
 
 
 def validate(args: argparse.Namespace) -> str | None:
     """Return an error message for invalid arguments, or None."""
+    if args.command != "explore":
+        return None
     if not args.endpoint.startswith(("http://", "https://")):
         return f"endpoint must be an http(s) URL: {args.endpoint}"
     if args.budget <= 0 or args.timeout <= 0:
@@ -143,6 +150,11 @@ def write_outputs(out: Path, discovery: Discovery) -> None:
     path = out / "discovery.json"
     path.write_text(json.dumps(discovery_to_dict(discovery), indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8")
+    write_generated(out, discovery)
+
+
+def write_generated(out: Path, discovery: Discovery) -> None:
+    """The files derived from the discovery: report, shapes, diagram, queries."""
     if discovery.found_shapes_ttl:
         (out / "found-shapes.ttl").write_text(discovery.found_shapes_ttl, encoding="utf-8")
 
@@ -220,6 +232,41 @@ def explore(args: argparse.Namespace) -> int:
     return code
 
 
+def load_discovery(path: Path) -> tuple[Discovery | None, str | None]:
+    """Read a saved discovery.json. Returns (discovery, None) or (None, one-line error)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return None, f"cannot read {path}: {e}"
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        return None, f"{path} is not valid JSON: {e}"
+    if not isinstance(data, dict):
+        return None, f"{path} is not a discovery.json (expected a JSON object)"
+    try:
+        return model.discovery_from_dict(data), None
+    except (TypeError, ValueError, AttributeError) as e:
+        return None, f"{path} is not a discovery.json: {e}"
+
+
+def render(args: argparse.Namespace) -> int:
+    """Regenerate the outputs from a saved discovery.json, without any query.
+
+    discovery.json itself is left untouched, and so is queries.log.
+    """
+    source = Path(args.discovery_json)
+    discovery, error = load_discovery(source)
+    if error:
+        print(f"baqueano: {error}", file=sys.stderr)
+        return EXIT_ERROR
+    out = Path(args.out) if args.out else source.parent
+    out.mkdir(parents=True, exist_ok=True)
+    write_generated(out, discovery)
+    print(f"baqueano: rendered {source} -> {out}", file=sys.stderr)
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -235,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     error = validate(args)
-    if error is None:
+    if error is None and args.command == "explore":
         try:
             for text in args.header:
                 parse_header(text)
@@ -246,4 +293,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "explore":
         return explore(args)
+    if args.command == "render":
+        return render(args)
     return EXIT_ERROR
